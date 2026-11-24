@@ -159,7 +159,7 @@ textarea{min-height:90px;resize:vertical}
 
 <script>
 {
-const VERSION='v1.1.2',BUILD='2026-11-24';
+const VERSION='v1.2.0',BUILD='2026-11-24';
 const KEY='mytools.v2',OLDKEY='mytools.links.v1';
 const COLORS=[['#e4002b','#fff'],['#0a5cff','#fff'],['#ffb400','#1a1300'],['#00a05a','#fff'],['#2a2f36','#fff'],['#0097a7','#fff'],['#e5427a','#fff'],['#7a5230','#fff']];
 const DEFAULTS={cats:[],links:[]};
@@ -365,6 +365,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeEdit();closeMe
 
 $('ver').textContent=`我的小工具 ${VERSION}（${BUILD}）`;$('ver2').textContent=`目前版本 ${VERSION}（${BUILD} 更新）`;
 load();render();
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='127.0.0.1')){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
 }
 </script>
 </body>

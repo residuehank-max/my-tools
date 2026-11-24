@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
 <meta name="theme-color" content="#111418">
+<meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="我的小工具">
@@ -179,7 +180,7 @@ textarea{min-height:90px;resize:vertical}
 
 <script>
 {
-const VERSION='v1.3.0',BUILD='2026-11-24';
+const VERSION='v1.3.1',BUILD='2026-11-24';
 const KEY='mytools.v2',OLDKEY='mytools.links.v1',SKEY='mytools.sync',DKEY='mytools.dirty';
 const COLORS=[['#e4002b','#fff'],['#0a5cff','#fff'],['#ffb400','#1a1300'],['#00a05a','#fff'],['#2a2f36','#fff'],['#0097a7','#fff'],['#e5427a','#fff'],['#7a5230','#fff']];
 const DEFAULTS={cats:[],links:[]};
@@ -212,13 +213,16 @@ function save(){
 const ls=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}};
 function parseSync(text){
   text=String(text||'').trim();if(!text)return null;
-  const i=text.indexOf('#');const h=i>=0?text.slice(i+1):text;
-  const p=new URLSearchParams(h.replace(/^\?/,''));const sv=p.get('s'),k=p.get('k');
-  if(!sv||!k)return null;
-  return {s:sv,k};
+  /* 專屬網址的 s、k 可能在 ? 後面（新版）或 # 後面（舊版） */
+  const parts=[];const q=text.indexOf('?'),h=text.indexOf('#');
+  if(q>=0)parts.push(text.slice(q+1,h>q?h:undefined));
+  if(h>=0)parts.push(text.slice(h+1));
+  if(q<0&&h<0)parts.push(text);
+  for(const part of parts){const p=new URLSearchParams(part);const sv=p.get('s'),k=p.get('k');if(sv&&k)return {s:sv,k}}
+  return null;
 }
 function execUrl(sv){return /^https?:/i.test(sv)?sv:`https://script.google.com/macros/s/${encodeURIComponent(sv)}/exec`}
-function privateLink(){return `${location.origin}${location.pathname}#s=${encodeURIComponent(sync.s)}&k=${encodeURIComponent(sync.k)}`}
+function privateLink(){return `${location.origin}${location.pathname}?s=${encodeURIComponent(sync.s)}&k=${encodeURIComponent(sync.k)}`}
 function setSyncState(st){syncState=st;updateHint();renderCloud()}
 function stText(){return {ok:'雲端已同步',busy:'同步中…',bad:'雲端同步失敗，稍後自動重試',key:'密碼不對，請重新貼上專屬網址',off:''}[syncState]||''}
 async function api(body){
@@ -454,7 +458,7 @@ $('syncOff').addEventListener('click',e=>{
   const b=e.currentTarget;if(!b.classList.contains('sure')){b.classList.add('sure');b.textContent='再按一次確定（雲端資料不會刪除）';return}
   b.classList.remove('sure');b.textContent='這支手機中斷連接';
   sync=null;ls(SKEY,null);ls(DKEY,null);syncState='';
-  if(location.hash)history.replaceState(null,'',location.pathname);
+  if(location.hash||location.search)history.replaceState(null,'',location.pathname);
   renderCloud();updateHint();toast('已中斷連接，連結仍保留在這支手機');
 });
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&sync&&Date.now()-lastSync>30000)pull(false)});
@@ -475,7 +479,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeEdit();closeMe
 
 $('ver').textContent=`我的小工具 ${VERSION}（${BUILD}）`;$('ver2').textContent=`目前版本 ${VERSION}（${BUILD} 更新）`;
 load();
-{const fromHash=parseSync(location.hash);
+{const fromHash=parseSync(location.search+location.hash);
  if(fromHash){sync=fromHash;ls(SKEY,JSON.stringify(fromHash))}
  else{try{const st=JSON.parse(ls(SKEY)||'null');if(st&&st.s&&st.k)sync=st}catch(e){}}}
 render();

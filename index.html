@@ -76,6 +76,10 @@ textarea{min-height:90px;resize:vertical}
 .toast.show{display:flex}
 .toast button{background:none;border:0;color:#7fb0ff;font:inherit;font-weight:700;min-height:36px;padding:0 8px;cursor:pointer}
 .small{font-size:13px;color:var(--sub);margin:8px 0 0}
+.cloud{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:8px;background:var(--card)}
+.sheet h3{font-size:16px;margin:0 0 6px}
+.cloud input{background:var(--bg)}
+.st-ok{color:#00a05a}.st-bad{color:var(--red)}
 .tag{font-size:11px;line-height:1;color:var(--sub);border:1px solid var(--line);border-radius:6px;padding:3px 5px;margin-top:-2px}
 .chk{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;font-size:15px;color:var(--ink);cursor:pointer}
 .chk input{width:22px;height:22px;margin:1px 0 0;flex:none;accent-color:var(--accent)}
@@ -140,9 +144,25 @@ textarea{min-height:90px;resize:vertical}
 
 <div class="scrim" id="menuScrim" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
   <div class="sheet menu">
-    <h2 id="menuTitle">備份與還原</h2>
+    <h2 id="menuTitle">雲端與備份</h2>
     <p class="small" id="ver2" style="margin:-8px 0 12px"></p>
-    <p class="small" style="margin:-6px 0 14px">連結和分類只存在這支手機的瀏覽器裡。換手機或清除瀏覽資料前，先備份。</p>
+    <div class="cloud" id="cloudOff">
+      <h3>雲端同步：未連接</h3>
+      <p class="small" style="margin:0 0 8px">連接你的 Google 試算表後，清除瀏覽器資料、換手機都不會不見。</p>
+      <label for="syncIn">貼上你的專屬網址</label>
+      <input type="text" id="syncIn" autocapitalize="off" autocorrect="off" placeholder="https://residuehank-max.github.io/my-tools/#s=…">
+      <div class="row" style="margin-top:10px"><button class="btn pri grow" id="syncGo">連接雲端</button></div>
+    </div>
+    <div class="cloud" id="cloudOn" hidden>
+      <h3>雲端同步：已連接</h3>
+      <p class="small" id="cloudInfo" style="margin:0 0 8px"></p>
+      <div class="row" style="margin-top:6px">
+        <button class="btn grow" id="syncNow">立即同步</button>
+        <button class="btn grow" id="syncCopy">複製專屬網址</button>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn danger grow" id="syncOff">這支手機中斷連接</button></div>
+    </div>
+    <h3 style="margin-top:20px">手動備份</h3>
     <button class="btn" id="dl">下載備份檔</button>
     <button class="btn" id="cp">複製備份文字（可貼到 LINE 或記事本）</button>
     <button class="btn" id="upBtn">從備份檔還原</button>
@@ -159,14 +179,14 @@ textarea{min-height:90px;resize:vertical}
 
 <script>
 {
-const VERSION='v1.2.0',BUILD='2026-11-24';
-const KEY='mytools.v2',OLDKEY='mytools.links.v1';
+const VERSION='v1.3.0',BUILD='2026-11-24';
+const KEY='mytools.v2',OLDKEY='mytools.links.v1',SKEY='mytools.sync',DKEY='mytools.dirty';
 const COLORS=[['#e4002b','#fff'],['#0a5cff','#fff'],['#ffb400','#1a1300'],['#00a05a','#fff'],['#2a2f36','#fff'],['#0097a7','#fff'],['#e5427a','#fff'],['#7a5230','#fff']];
 const DEFAULTS={cats:[],links:[]};
 const $=id=>document.getElementById(id);
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let cats=[],links=[],filter='all',editing=false,cur=null,pick=0,undoData=null,toastT=0,delArmed=false,catDelArmed=null;
+let cats=[],links=[],filter='all',sync=null,syncState='',lastSync=0,cloudLoading=false,pushT=0,pushing=false,editing=false,cur=null,pick=0,undoData=null,toastT=0,delArmed=false,catDelArmed=null;
 
 function clean(d){
   if(Array.isArray(d))d={cats:[],links:d};
@@ -183,7 +203,79 @@ function load(){
     const old=localStorage.getItem(OLDKEY);if(old!==null){apply(clean(JSON.parse(old)));save();return}}catch(e){}
   apply(clean(DEFAULTS));
 }
-function save(){try{localStorage.setItem(KEY,snap())}catch(e){toast('這個瀏覽器無法儲存，關掉後會消失')}}
+function saveLocal(){try{localStorage.setItem(KEY,snap())}catch(e){}}
+function save(){
+  try{localStorage.setItem(KEY,snap())}catch(e){if(!sync)toast('這個瀏覽器無法儲存，關掉後會消失')}
+  if(sync){try{localStorage.setItem(DKEY,'1')}catch(e){}schedulePush()}
+}
+/* ---- 雲端同步（Google 試算表）---- */
+const ls=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}};
+function parseSync(text){
+  text=String(text||'').trim();if(!text)return null;
+  const i=text.indexOf('#');const h=i>=0?text.slice(i+1):text;
+  const p=new URLSearchParams(h.replace(/^\?/,''));const sv=p.get('s'),k=p.get('k');
+  if(!sv||!k)return null;
+  return {s:sv,k};
+}
+function execUrl(sv){return /^https?:/i.test(sv)?sv:`https://script.google.com/macros/s/${encodeURIComponent(sv)}/exec`}
+function privateLink(){return `${location.origin}${location.pathname}#s=${encodeURIComponent(sync.s)}&k=${encodeURIComponent(sync.k)}`}
+function setSyncState(st){syncState=st;updateHint();renderCloud()}
+function stText(){return {ok:'雲端已同步',busy:'同步中…',bad:'雲端同步失敗，稍後自動重試',key:'密碼不對，請重新貼上專屬網址',off:''}[syncState]||''}
+async function api(body){
+  const u=execUrl(sync.s);
+  const r=body
+    ?await fetch(u,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({k:sync.k},body)),redirect:'follow'})
+    :await fetch(`${u}?k=${encodeURIComponent(sync.k)}&t=${Date.now()}`,{redirect:'follow'});
+  const j=await r.json();if(!j.ok)throw new Error(j.error||'失敗');return j;
+}
+async function pull(first){
+  if(!sync)return;
+  if(ls(DKEY)==='1'){return push()}
+  cloudLoading=!links.length&&!cats.length;if(cloudLoading)render();
+  setSyncState('busy');
+  try{
+    const j=await api();cloudLoading=false;
+    if(j.data&&Array.isArray(j.data.links)){
+      const d=clean(j.data);
+      if(JSON.stringify(d)!==snap()){
+        const old=snap(),hadLocal=links.length>0;
+        apply(d);saveLocal();render();
+        if(first&&hadLocal)toast('已換成雲端上的內容',old);
+      }else render();
+      lastSync=Date.now();setSyncState('ok');
+    }else{ /* 雲端還是空的：把這支手機的內容放上去 */
+      render();
+      if(links.length||cats.length){ls(DKEY,'1');await push()}else{lastSync=Date.now();setSyncState('ok')}
+    }
+  }catch(e){cloudLoading=false;render();setSyncState(/密碼/.test(e.message)?'key':'bad')}
+}
+function schedulePush(){clearTimeout(pushT);setSyncState('busy');pushT=setTimeout(push,700)}
+async function push(){
+  if(!sync)return;if(pushing){schedulePush();return}
+  pushing=true;setSyncState('busy');
+  const sent=snap();
+  try{await api({data:JSON.parse(sent)});if(snap()===sent)ls(DKEY,null);lastSync=Date.now();setSyncState('ok')}
+  catch(e){setSyncState(/密碼/.test(e.message)?'key':'bad')}
+  finally{pushing=false}
+}
+function connect(obj,fromLink){
+  sync=obj;ls(SKEY,JSON.stringify(obj));
+  if(fromLink){ls(DKEY,null)}
+  pull(true);
+}
+function renderCloud(){
+  if(!$('cloudOn'))return;
+  $('cloudOn').hidden=!sync;$('cloudOff').hidden=!!sync;
+  if(sync){const t=lastSync?new Date(lastSync).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}):'';
+    $('cloudInfo').innerHTML=`<span class="${syncState==='bad'||syncState==='key'?'st-bad':syncState==='ok'?'st-ok':''}">${esc(stText()||'已連接')}</span>${t&&syncState==='ok'?` · ${esc(t)}`:''}<br>專屬網址等於密碼，請只存在自己的 LINE 記事本。`}
+}
+function updateHint(){
+  if(editing){$('hint').textContent='點圖示可以改名稱、網址、分類、顏色、順序或刪除';return}
+  const parts=[];if(links.length)parts.push(`共 ${links.length} 個 · 點圖示開啟`);
+  if(sync&&stText())parts.push(stText());
+  $('hint').textContent=parts.join(' · ');
+  $('hint').className='hint'+(syncState==='bad'||syncState==='key'?' st-bad':'');
+}
 function glyph(n){return(Array.from(n.trim())[0]||'?').toUpperCase()}
 function host(u){try{return new URL(u).host}catch(e){return u}}
 const ANDROID=/Android/i.test(navigator.userAgent);
@@ -228,8 +320,10 @@ function render(){
     const it=filter==='all'?links:links.filter(l=>l.cat===filter);
     html=(it.length?'':`<p class="empty">${links.length?'這個分類還沒有連結':'還沒有連結，按「＋」新增第一個'}</p>`)+grid(it,true);
   }
+  if(cloudLoading&&!q)html=`<p class="empty">正在從雲端載入你的連結…</p>`;
+  else if(!sync&&!links.length&&!q)html=`<p class="empty">連結不見了嗎？按右上角「⋯」，貼上你的專屬網址就能從雲端拿回來。</p>`+html;
   $('main').innerHTML=html;
-  $('hint').textContent=editing?'點圖示可以改名稱、網址、分類、顏色、順序或刪除':(links.length?`共 ${links.length} 個 · 點圖示開啟`:'');
+  updateHint();
 }
 
 function openEdit(l,catId){
@@ -348,7 +442,23 @@ $('del').addEventListener('click',()=>{
 $('toastUndo').addEventListener('click',()=>{if(toastAct){const f=toastAct;toastAct=null;$('toast').classList.remove('show');f();return}if(undoData){apply(clean(JSON.parse(undoData)));undoData=null;save();render();if($('catScrim').classList.contains('show'))renderCats();toast('已復原')}});
 
 /* 備份 */
-$('menuBtn').addEventListener('click',()=>{$('paste').value='';$('menuScrim').classList.add('show')});
+$('menuBtn').addEventListener('click',()=>{$('paste').value='';$('syncIn').value='';renderCloud();$('menuScrim').classList.add('show')});
+$('syncGo').addEventListener('click',()=>{
+  const o=parseSync($('syncIn').value);
+  if(!o){toast('看不懂這個網址，請貼上完整的專屬網址');return}
+  connect(o,true);renderCloud();toast('已連接雲端，正在同步…');
+});
+$('syncNow').addEventListener('click',()=>{if(ls(DKEY)==='1')push();else pull(false)});
+$('syncCopy').addEventListener('click',()=>copy(privateLink(),'專屬網址已複製，請貼到自己的 LINE 記事本'));
+$('syncOff').addEventListener('click',e=>{
+  const b=e.currentTarget;if(!b.classList.contains('sure')){b.classList.add('sure');b.textContent='再按一次確定（雲端資料不會刪除）';return}
+  b.classList.remove('sure');b.textContent='這支手機中斷連接';
+  sync=null;ls(SKEY,null);ls(DKEY,null);syncState='';
+  if(location.hash)history.replaceState(null,'',location.pathname);
+  renderCloud();updateHint();toast('已中斷連接，連結仍保留在這支手機');
+});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&sync&&Date.now()-lastSync>30000)pull(false)});
+window.addEventListener('online',()=>{if(sync)(ls(DKEY)==='1'?push():pull(false))});
 $('menuClose').addEventListener('click',closeMenu);
 $('menuScrim').addEventListener('click',e=>{if(e.target.id==='menuScrim')closeMenu()});
 $('dl').addEventListener('click',()=>{
@@ -364,7 +474,12 @@ $('reset').addEventListener('click',()=>{const old=snap();apply(clean(DEFAULTS))
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeEdit();closeMenu();if($('catScrim').classList.contains('show'))closeCats()}});
 
 $('ver').textContent=`我的小工具 ${VERSION}（${BUILD}）`;$('ver2').textContent=`目前版本 ${VERSION}（${BUILD} 更新）`;
-load();render();
+load();
+{const fromHash=parseSync(location.hash);
+ if(fromHash){sync=fromHash;ls(SKEY,JSON.stringify(fromHash))}
+ else{try{const st=JSON.parse(ls(SKEY)||'null');if(st&&st.s&&st.k)sync=st}catch(e){}}}
+render();
+if(sync)pull(true);
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='127.0.0.1')){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
 }
 </script>

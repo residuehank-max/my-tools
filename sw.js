@@ -1,5 +1,5 @@
 // 我的小工具：把 App 存在手機上，點開立刻顯示；背景自動抓新版
-const CACHE = 'mytools-v1.2.0';
+const CACHE = 'mytools-v1.3.0';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

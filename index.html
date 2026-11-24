@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>我的小工具</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#111418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="我的小工具">
+<style>
+/* VOICE: 安靜、俐落，像手機自己的主畫面
+   IDEA: 一張自訂的手機桌面，分類就像桌面上的資料夾分區
+   PICTURE: 圖示格子本身，佔滿第一屏
+   COLOUR and TYPE: 白底或深夜底，圖示用地鐵線色；系統黑體
+   LAYOUT: 標題＋編輯／選單，搜尋，分類標籤列，下方分區圖示格 */
+:root{color-scheme:light dark;--bg:light-dark(#fff,#111418);--ink:light-dark(#14171a,#eef1f4);--sub:light-dark(#5d6670,#9aa4ae);--line:light-dark(#e3e6ea,#262b31);--card:light-dark(#f4f5f7,#1b2026);--accent:#0a5cff;--red:#e4002b}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;overflow-x:clip;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:760px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 20px) max(5vw,16px) calc(env(safe-area-inset-bottom) + 40px)}
+header{display:flex;align-items:center;gap:8px;border-top:6px solid var(--ink);padding-top:14px}
+h1{font-size:32px;line-height:1.05;margin:0;flex:1;font-weight:800}
+.btn{font:inherit;font-size:16px;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,.tile:focus-visible,.sw:focus-visible,.chip:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.danger{color:var(--red)}
+.btn.sure{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.sm{min-height:40px;padding:0 12px;font-size:15px}
+.icon{width:44px;padding:0;display:grid;place-items:center}
+.search{margin:16px 0 0;width:100%;font:inherit;font-size:16px;min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:12px 2px 4px;margin:0 -2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;font:inherit;font-size:15px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip.mng{color:var(--accent);border-style:dashed}
+.hint{font-size:13px;color:var(--sub);margin:6px 0 0;min-height:20px}
+.sec{margin-top:22px}
+.sec h2{font-size:17px;margin:0 0 12px;display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.sec h2 span{font-size:13px;color:var(--sub);font-weight:400}
+.grid{list-style:none;padding:0;margin:14px 0 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px 12px}
+.sec .grid{margin:0}
+@media(min-width:600px){.grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.tile{display:flex;flex-direction:column;align-items:center;gap:7px;text-decoration:none;color:var(--ink);background:none;border:0;padding:0;font:inherit;cursor:pointer;width:100%;border-radius:14px}
+.sq{width:100%;max-width:84px;aspect-ratio:1;border-radius:24%;display:grid;place-items:center;font-size:clamp(26px,8vw,36px);font-weight:800;color:#fff;box-shadow:inset 0 -6px 0 rgba(0,0,0,.14),inset 0 2px 0 rgba(255,255,255,.22),0 2px 6px rgba(0,0,0,.12);position:relative}
+.lbl{font-size:13px;line-height:1.3;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
+.add .sq{background:transparent;color:var(--sub);border:2px dashed var(--line);box-shadow:none;font-weight:400}
+.editing .sq:not(.plus)::after{content:"";position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;background:var(--ink) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 17.5V19h1.5L16 9.5 14.5 8zM17 7.5l-1.5-1.5 1-1a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 1 0 1.4z' fill='%23fff'/%3E%3C/svg%3E") center/16px no-repeat;border:2px solid var(--bg)}
+@media(prefers-reduced-motion:no-preference){.editing .sq:not(.plus){animation:wob .32s ease-in-out infinite alternate}.editing li:nth-child(2n) .sq{animation-delay:-.16s}}
+@keyframes wob{from{transform:rotate(-1.6deg)}to{transform:rotate(1.6deg)}}
+.empty{grid-column:1/-1;text-align:center;color:var(--sub);padding:30px 0}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.scrim.show{display:flex}
+.sheet{background:var(--bg);width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:20px 18px calc(env(safe-area-inset-bottom) + 20px);max-height:92vh;overflow:auto}
+@media(min-width:600px){.scrim{align-items:center}.sheet{border-radius:20px}}
+.sheet h2{font-size:22px;margin:0 0 14px;line-height:1.2}
+label{display:block;font-size:14px;color:var(--sub);margin:12px 0 4px}
+input[type=text],input[type=url],textarea,select{width:100%;font:inherit;font-size:16px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+select{min-height:46px}
+textarea{min-height:90px;resize:vertical}
+.sws{display:flex;flex-wrap:wrap;gap:10px}
+.sw{width:44px;height:44px;border-radius:12px;border:3px solid transparent;cursor:pointer}
+.sw[aria-checked=true]{border-color:var(--ink);box-shadow:inset 0 0 0 2px var(--bg)}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.row .grow{flex:1}
+.menu>.btn{width:100%;text-align:start;margin-bottom:8px}
+.cat{display:flex;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.cat input{flex:1}
+.cat .btn{flex:none}
+.cat .n{font-size:13px;color:var(--sub);flex:none;width:3.2em;text-align:right}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 10px 10px 16px;border-radius:12px;display:none;align-items:center;gap:12px;z-index:20;font-size:15px;max-width:92vw}
+.toast.show{display:flex}
+.toast button{background:none;border:0;color:#7fb0ff;font:inherit;font-weight:700;min-height:36px;padding:0 8px;cursor:pointer}
+.small{font-size:13px;color:var(--sub);margin:8px 0 0}
+.tag{font-size:11px;line-height:1;color:var(--sub);border:1px solid var(--line);border-radius:6px;padding:3px 5px;margin-top:-2px}
+.chk{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;font-size:15px;color:var(--ink);cursor:pointer}
+.chk input{width:22px;height:22px;margin:1px 0 0;flex:none;accent-color:var(--accent)}
+.chk small{display:block;font-size:13px;color:var(--sub)}
+.ver{font-size:13px;color:var(--sub);text-align:center;margin:40px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>我的小工具</h1>
+    <button class="btn" id="editBtn" aria-pressed="false">編輯</button>
+    <button class="btn icon" id="menuBtn" aria-label="備份與還原"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button>
+  </header>
+  <input class="search" id="q" type="search" placeholder="搜尋小工具" aria-label="搜尋小工具">
+  <div class="chips" id="chips" role="toolbar" aria-label="分類"></div>
+  <p class="hint" id="hint"></p>
+  <div id="main"></div>
+  <p class="ver" id="ver"></p>
+</div>
+
+<div class="scrim" id="editScrim" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+  <form class="sheet" id="form" novalidate>
+    <h2 id="editTitle">新增連結</h2>
+    <label for="fName">名稱</label>
+    <input type="text" id="fName" maxlength="30" placeholder="例如：羽球分帳">
+    <label for="fUrl">網址</label>
+    <input type="url" id="fUrl" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="https://…">
+    <label for="fCat">分類</label>
+    <select id="fCat"></select>
+    <label>顏色</label>
+    <div class="sws" id="sws" role="radiogroup" aria-label="顏色"></div>
+    <label for="fNote">備註（選填）</label>
+    <input type="text" id="fNote" maxlength="60" placeholder="例如：分享給球友用">
+    <label class="chk" for="fChrome"><input type="checkbox" id="fChrome"><span>一律用 Chrome 開啟<small>給只能在 Chrome 用的網頁，例如要連藍牙的體重計。Android 才有效；iPhone 照常開啟。</small></span></label>
+    <p class="small" id="err" role="alert" style="color:var(--red)"></p>
+    <div class="row" id="moveRow">
+      <button type="button" class="btn" id="mvL">往前移</button>
+      <button type="button" class="btn" id="mvR">往後移</button>
+      <button type="button" class="btn" id="copyUrl">複製網址</button>
+      <button type="button" class="btn danger" id="del">刪除</button>
+    </div>
+    <div class="row">
+      <button type="button" class="btn grow" id="cancel">取消</button>
+      <button type="submit" class="btn pri grow">儲存</button>
+    </div>
+  </form>
+</div>
+
+<div class="scrim" id="catScrim" role="dialog" aria-modal="true" aria-labelledby="catTitle">
+  <div class="sheet">
+    <h2 id="catTitle">管理分類</h2>
+    <p class="small" style="margin:-6px 0 6px">直接改名稱；用 ↑ ↓ 排順序。刪除分類不會刪掉連結，裡面的連結會移到「未分類」。</p>
+    <div id="catList"></div>
+    <div class="row">
+      <input type="text" id="newCat" maxlength="12" placeholder="新分類名稱" aria-label="新分類名稱" style="flex:1">
+      <button class="btn pri" id="addCat">新增</button>
+    </div>
+    <div class="row"><button class="btn grow" id="catClose">完成</button></div>
+  </div>
+</div>
+
+<div class="scrim" id="menuScrim" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+  <div class="sheet menu">
+    <h2 id="menuTitle">備份與還原</h2>
+    <p class="small" id="ver2" style="margin:-8px 0 12px"></p>
+    <p class="small" style="margin:-6px 0 14px">連結和分類只存在這支手機的瀏覽器裡。換手機或清除瀏覽資料前，先備份。</p>
+    <button class="btn" id="dl">下載備份檔</button>
+    <button class="btn" id="cp">複製備份文字（可貼到 LINE 或記事本）</button>
+    <button class="btn" id="upBtn">從備份檔還原</button>
+    <input type="file" id="up" accept=".json,application/json,text/plain" hidden>
+    <label for="paste">或把備份文字貼在這裡</label>
+    <textarea id="paste" placeholder="把複製的備份文字貼上"></textarea>
+    <div class="row"><button class="btn grow" id="pasteGo">用貼上的文字還原</button></div>
+    <div class="row"><button class="btn danger grow" id="reset">全部清空</button></div>
+    <div class="row"><button class="btn grow" id="menuClose">關閉</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"><span id="toastMsg"></span><button id="toastUndo" hidden>復原</button></div>
+
+<script>
+{
+const VERSION='v1.1.2',BUILD='2026-11-24';
+const KEY='mytools.v2',OLDKEY='mytools.links.v1';
+const COLORS=[['#e4002b','#fff'],['#0a5cff','#fff'],['#ffb400','#1a1300'],['#00a05a','#fff'],['#2a2f36','#fff'],['#0097a7','#fff'],['#e5427a','#fff'],['#7a5230','#fff']];
+const DEFAULTS={cats:[],links:[]};
+const $=id=>document.getElementById(id);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let cats=[],links=[],filter='all',editing=false,cur=null,pick=0,undoData=null,toastT=0,delArmed=false,catDelArmed=null;
+
+function clean(d){
+  if(Array.isArray(d))d={cats:[],links:d};
+  if(!d||!Array.isArray(d.links))throw new Error('bad');
+  const cs=(Array.isArray(d.cats)?d.cats:[]).filter(c=>c&&c.name).map(c=>({id:String(c.id||uid()),name:String(c.name).slice(0,12)}));
+  const ids=new Set(cs.map(c=>c.id));
+  const ls=d.links.filter(x=>x&&x.name&&x.url).map(x=>({id:String(x.id||uid()),name:String(x.name).slice(0,30),url:String(x.url),color:Math.min(COLORS.length-1,Math.max(0,parseInt(x.color)||0)),note:String(x.note||'').slice(0,60),cat:ids.has(String(x.cat))?String(x.cat):'',chrome:!!x.chrome}));
+  return {cats:cs,links:ls};
+}
+function snap(){return JSON.stringify({cats,links})}
+function apply(d){cats=d.cats;links=d.links;if(filter!=='all'&&filter!==''&&!cats.some(c=>c.id===filter))filter='all'}
+function load(){
+  try{const raw=localStorage.getItem(KEY);if(raw!==null){apply(clean(JSON.parse(raw)));return}
+    const old=localStorage.getItem(OLDKEY);if(old!==null){apply(clean(JSON.parse(old)));save();return}}catch(e){}
+  apply(clean(DEFAULTS));
+}
+function save(){try{localStorage.setItem(KEY,snap())}catch(e){toast('這個瀏覽器無法儲存，關掉後會消失')}}
+function glyph(n){return(Array.from(n.trim())[0]||'?').toUpperCase()}
+function host(u){try{return new URL(u).host}catch(e){return u}}
+const ANDROID=/Android/i.test(navigator.userAgent);
+function href(l){
+  if(!l.chrome||!ANDROID)return l.url;
+  try{const u=new URL(l.url);return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.replace(':','')};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(l.url)};end`}catch(e){return l.url}
+}
+function catName(id){const c=cats.find(c=>c.id===id);return c?c.name:'未分類'}
+
+function tileHTML(l){
+  const [bg,fg]=COLORS[l.color];
+  const inner=`<span class="sq" style="background:${bg};color:${fg}" aria-hidden="true">${esc(glyph(l.name))}</span><span class="lbl">${esc(l.name)}</span>${l.chrome?'<span class="tag">Chrome</span>':''}`;
+  return editing
+    ?`<li><button class="tile" data-id="${esc(l.id)}" aria-label="編輯 ${esc(l.name)}">${inner}</button></li>`
+    :(l.chrome&&ANDROID
+      ?`<li><a class="tile" href="${esc(href(l))}" data-chrome="${esc(l.id)}" title="${esc(l.note||host(l.url))}">${inner}</a></li>`
+      :`<li><a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(l.note||host(l.url))}">${inner}</a></li>`);
+}
+const addTile=`<li><button class="tile add" data-add="1"><span class="sq plus" aria-hidden="true">＋</span><span class="lbl">新增</span></button></li>`;
+function grid(items,withAdd){return `<ul class="grid${editing?' editing':''}">${items.map(tileHTML).join('')}${withAdd?addTile:''}</ul>`}
+
+function renderChips(){
+  const hasUncat=links.some(l=>!l.cat);
+  const list=[['all','全部'],...cats.map(c=>[c.id,c.name]),...(hasUncat&&cats.length?[['','未分類']]:[])];
+  $('chips').innerHTML=list.map(([id,n])=>`<button class="chip" data-f="${esc(id)}" aria-pressed="${filter===id}">${esc(n)}</button>`).join('')+`<button class="chip mng" id="mngBtn">管理分類</button>`;
+}
+function render(){
+  renderChips();
+  const q=$('q').value.trim().toLowerCase();
+  let html='';
+  if(q){
+    const r=links.filter(l=>(l.name+' '+l.note+' '+l.url+' '+catName(l.cat)).toLowerCase().includes(q));
+    html=r.length?grid(r,false):`<p class="empty">找不到符合的小工具</p>`;
+  }else if(filter==='all'&&cats.length){
+    const groups=[...cats.map(c=>[c.id,c.name]),['','未分類']];
+    html=groups.map(([id,n])=>{const it=links.filter(l=>l.cat===id);
+      if(!it.length&&!(editing&&id))return '';
+      return `<section class="sec" data-cat="${esc(id)}"><h2>${esc(n)}<span>${it.length} 個</span></h2>${grid(it,editing)}</section>`}).join('');
+    if(!editing)html+=`<section class="sec">${grid([],true)}</section>`;
+    if(!links.length&&!editing)html=`<p class="empty">還沒有連結，按「＋」新增第一個</p>`+grid([],true);
+  }else{
+    const it=filter==='all'?links:links.filter(l=>l.cat===filter);
+    html=(it.length?'':`<p class="empty">${links.length?'這個分類還沒有連結':'還沒有連結，按「＋」新增第一個'}</p>`)+grid(it,true);
+  }
+  $('main').innerHTML=html;
+  $('hint').textContent=editing?'點圖示可以改名稱、網址、分類、顏色、順序或刪除':(links.length?`共 ${links.length} 個 · 點圖示開啟`:'');
+}
+
+function openEdit(l,catId){
+  cur=l||null;delArmed=false;
+  $('editTitle').textContent=l?'編輯連結':'新增連結';
+  $('fName').value=l?l.name:'';$('fUrl').value=l?l.url:'';$('fNote').value=l?l.note:'';
+  pick=l?l.color:links.length%COLORS.length;
+  const sel=l?l.cat:(catId!==undefined?catId:(filter!=='all'?filter:(cats[0]?cats[0].id:'')));
+  $('fCat').innerHTML=cats.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+`<option value="">未分類</option>`;
+  $('fCat').value=sel;$('fChrome').checked=l?!!l.chrome:false;
+  $('err').textContent='';
+  $('moveRow').style.display=l?'flex':'none';
+  $('del').textContent='刪除';$('del').classList.remove('sure');
+  drawSw();
+  $('editScrim').classList.add('show');
+}
+function drawSw(){$('sws').innerHTML=COLORS.map((c,i)=>`<button type="button" class="sw" role="radio" aria-checked="${i===pick}" aria-label="顏色 ${i+1}" data-i="${i}" style="background:${c[0]}"></button>`).join('')}
+function closeEdit(){$('editScrim').classList.remove('show');cur=null}
+function normUrl(u){
+  u=u.trim();if(!u)return '';
+  if(!/^[a-z][a-z0-9+.-]*:/i.test(u))u='https://'+u;
+  try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:''}catch(e){return ''}
+}
+let toastAct=null;
+function toast(msg,undo,actLabel,actFn){
+  $('toastMsg').textContent=msg;undoData=undo||null;toastAct=actFn||null;
+  $('toastUndo').textContent=actLabel||'復原';$('toastUndo').hidden=!(undo||actFn);
+  $('toast').classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>$('toast').classList.remove('show'),undo?6000:2600);
+}
+function restore(text){
+  try{const d=clean(JSON.parse(text));if(!d.links.length)throw 0;const old=snap();apply(d);save();render();closeMenu();toast(`已還原 ${d.links.length} 個連結`,old)}
+  catch(e){toast('看不懂這份備份，請確認內容完整')}
+}
+function closeMenu(){$('menuScrim').classList.remove('show')}
+async function copy(t,ok){try{await navigator.clipboard.writeText(t);toast(ok)}catch(e){toast('無法自動複製，請手動選取')}}
+
+/* 分類管理 */
+function renderCats(){
+  $('catList').innerHTML=cats.length?cats.map((c,i)=>`<div class="cat" data-id="${esc(c.id)}">
+    <input type="text" value="${esc(c.name)}" maxlength="12" aria-label="分類名稱">
+    <span class="n">${links.filter(l=>l.cat===c.id).length} 個</span>
+    <button class="btn sm" data-a="up" aria-label="往上" ${i?'':'disabled'}>↑</button>
+    <button class="btn sm" data-a="down" aria-label="往下" ${i<cats.length-1?'':'disabled'}>↓</button>
+    <button class="btn sm danger${catDelArmed===c.id?' sure':''}" data-a="del">${catDelArmed===c.id?'確定':'刪除'}</button></div>`).join('')
+    :`<p class="small">還沒有分類，在下面新增一個。</p>`;
+}
+function openCats(){catDelArmed=null;renderCats();$('newCat').value='';$('catScrim').classList.add('show')}
+function closeCats(){$('catScrim').classList.remove('show');save();render()}
+$('catList').addEventListener('input',e=>{
+  const row=e.target.closest('.cat');if(!row)return;const c=cats.find(c=>c.id===row.dataset.id);
+  const v=e.target.value.trim();if(c&&v)c.name=v;
+});
+$('catList').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-a]');if(!b)return;
+  const id=b.closest('.cat').dataset.id,i=cats.findIndex(c=>c.id===id);
+  if(b.dataset.a==='up'&&i>0){[cats[i-1],cats[i]]=[cats[i],cats[i-1]];catDelArmed=null}
+  else if(b.dataset.a==='down'&&i<cats.length-1){[cats[i+1],cats[i]]=[cats[i],cats[i+1]];catDelArmed=null}
+  else if(b.dataset.a==='del'){
+    if(catDelArmed!==id){catDelArmed=id}
+    else{const old=snap();cats.splice(i,1);links.forEach(l=>{if(l.cat===id)l.cat=''});if(filter===id)filter='all';catDelArmed=null;save();toast('已刪除分類',old)}
+  }
+  save();renderCats();
+});
+function addCat(){
+  const v=$('newCat').value.trim();if(!v){$('newCat').focus();return}
+  if(cats.some(c=>c.name===v)){toast('已經有這個分類了');return}
+  cats.push({id:uid(),name:v});$('newCat').value='';save();renderCats();toast(`已新增分類「${v}」`);
+}
+$('addCat').addEventListener('click',addCat);
+$('newCat').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCat()}});
+$('catClose').addEventListener('click',closeCats);
+$('catScrim').addEventListener('click',e=>{if(e.target.id==='catScrim')closeCats()});
+
+/* 主畫面 */
+$('chips').addEventListener('click',e=>{
+  if(e.target.closest('#mngBtn')){openCats();return}
+  const b=e.target.closest('.chip');if(!b)return;filter=b.dataset.f;render();
+});
+let chromeT=0;
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(chromeT)});
+$('main').addEventListener('click',e=>{
+  const a=e.target.closest('a[data-chrome]');
+  if(a){const l=links.find(x=>x.id===a.dataset.chrome);clearTimeout(chromeT);
+    chromeT=setTimeout(()=>{if(!document.hidden&&l)toast('沒有跳到 Chrome 嗎？','',`改用這個瀏覽器開`,()=>{location.href=l.url})},2000);return}
+  const t=e.target.closest('button.tile');if(!t)return;
+  if(t.dataset.add){const sec=t.closest('.sec[data-cat]');openEdit(null,sec?sec.dataset.cat:undefined);return}
+  openEdit(links.find(l=>l.id===t.dataset.id));
+});
+$('editBtn').addEventListener('click',()=>{editing=!editing;$('editBtn').classList.toggle('on',editing);$('editBtn').setAttribute('aria-pressed',editing);$('editBtn').textContent=editing?'完成':'編輯';render()});
+$('q').addEventListener('input',render);
+$('sws').addEventListener('click',e=>{const b=e.target.closest('.sw');if(!b)return;pick=+b.dataset.i;drawSw()});
+$('cancel').addEventListener('click',closeEdit);
+$('editScrim').addEventListener('click',e=>{if(e.target.id==='editScrim')closeEdit()});
+$('form').addEventListener('submit',e=>{
+  e.preventDefault();
+  const name=$('fName').value.trim(),url=normUrl($('fUrl').value),note=$('fNote').value.trim(),cat=$('fCat').value,chrome=$('fChrome').checked;
+  if(!name){$('err').textContent='請填名稱';return}
+  if(!url){$('err').textContent='網址看起來不對，請貼上完整網址';return}
+  if(cur){const moved=cur.cat!==cat;Object.assign(cur,{name,url,note,cat,chrome,color:pick});toast(moved?`已移到「${catName(cat)}」`:'已儲存')}
+  else{links.push({id:uid(),name,url,note,cat,chrome,color:pick});toast(`已新增到「${catName(cat)}」`)}
+  save();render();closeEdit();
+});
+function move(d){
+  const same=links.filter(l=>l.cat===cur.cat),k=same.indexOf(cur),other=same[k+d];
+  if(!other){toast(d<0?'已經是這個分類的第一個':'已經是這個分類的最後一個');return}
+  const i=links.indexOf(cur),j=links.indexOf(other);[links[i],links[j]]=[links[j],links[i]];
+  save();render();toast(d<0?'已往前移':'已往後移');
+}
+$('mvL').addEventListener('click',()=>move(-1));
+$('mvR').addEventListener('click',()=>move(1));
+$('copyUrl').addEventListener('click',()=>copy(normUrl($('fUrl').value)||$('fUrl').value,'網址已複製，可以貼給朋友'));
+$('del').addEventListener('click',()=>{
+  if(!delArmed){delArmed=true;$('del').textContent='再按一次確定刪除';$('del').classList.add('sure');return}
+  const old=snap();links=links.filter(l=>l!==cur);save();render();closeEdit();toast('已刪除',old);
+});
+$('toastUndo').addEventListener('click',()=>{if(toastAct){const f=toastAct;toastAct=null;$('toast').classList.remove('show');f();return}if(undoData){apply(clean(JSON.parse(undoData)));undoData=null;save();render();if($('catScrim').classList.contains('show'))renderCats();toast('已復原')}});
+
+/* 備份 */
+$('menuBtn').addEventListener('click',()=>{$('paste').value='';$('menuScrim').classList.add('show')});
+$('menuClose').addEventListener('click',closeMenu);
+$('menuScrim').addEventListener('click',e=>{if(e.target.id==='menuScrim')closeMenu()});
+$('dl').addEventListener('click',()=>{
+  try{const d=new Date(),n=`我的小工具備份_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([snap()],{type:'application/json'}));a.download=n;document.body.appendChild(a);a.click();a.remove();toast('備份檔已下載')}
+  catch(e){toast('這裡不能下載，請改用「複製備份文字」')}
+});
+$('cp').addEventListener('click',()=>copy(snap(),'備份文字已複製'));
+$('upBtn').addEventListener('click',()=>$('up').click());
+$('up').addEventListener('change',()=>{const f=$('up').files[0];if(!f)return;f.text().then(restore);$('up').value=''});
+$('pasteGo').addEventListener('click',()=>restore($('paste').value));
+$('reset').addEventListener('click',()=>{const old=snap();apply(clean(DEFAULTS));filter='all';save();render();closeMenu();toast('已全部清空',old)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeEdit();closeMenu();if($('catScrim').classList.contains('show'))closeCats()}});
+
+$('ver').textContent=`我的小工具 ${VERSION}（${BUILD}）`;$('ver2').textContent=`目前版本 ${VERSION}（${BUILD} 更新）`;
+load();render();
+}
+</script>
+</body>
+</html>
